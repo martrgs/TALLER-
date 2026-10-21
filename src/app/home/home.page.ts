@@ -1,4 +1,5 @@
-import { Component, inject } from '@angular/core';
+
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -13,32 +14,20 @@ import {
   IonCardContent,
   IonList,
   IonItem,
+  IonLabel,
   IonInput,
-  IonSelect,
-  IonSelectOption,
-  IonToggle,
-  IonCheckbox,
+  IonTextarea,
   IonButton,
-  IonButtons,
   IonIcon,
-  IonBadge,
-  IonModal
+  IonText
 } from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import {
-  phonePortraitOutline,
-  createOutline,
-  documentTextOutline,
-  paperPlaneOutline,
-  closeCircleOutline
-} from 'ionicons/icons';
-import { BookingRequest, AVAILABLE_SERVICES, ServiceCategory } from '../models/booking-request.model';
-import { FeedbackService } from '../services/feedback.service';
+
+import { ApiService, Publicacion } from '../services/api.service';
 
 @Component({
   selector: 'app-home',
-  templateUrl: 'home.page.html',
-  styleUrls: ['home.page.scss'],
+  templateUrl: './home.page.html',
+  styleUrls: ['./home.page.scss'],
   standalone: true,
   imports: [
     CommonModule,
@@ -54,76 +43,71 @@ import { FeedbackService } from '../services/feedback.service';
     IonCardContent,
     IonList,
     IonItem,
+    IonLabel,
     IonInput,
-    IonSelect,
-    IonSelectOption,
-    IonToggle,
-    IonCheckbox,
+    IonTextarea,
     IonButton,
-    IonButtons,
     IonIcon,
-    IonBadge,
-    IonModal
+    IonText
   ]
 })
-export class HomePage {
-  private readonly feedbackService = inject(FeedbackService);
+export class HomePage implements OnInit {
+  private apiService = inject(ApiService);
 
-  readonly services: ServiceCategory[] = AVAILABLE_SERVICES;
+  publicaciones: Publicacion[] = [];
+  cargando = false;
+  errorApi = '';
+  mensaje = '';
 
-  formData: BookingRequest = {
-    fullName: '',
-    serviceType: '',
-    smsNotifications: true,
-    acceptTerms: false
-  };
+  titulo = '';
+  contenido = '';
 
-  isTermsModalOpen: boolean = false;
+  ngOnInit(): void {
+    this.cargarPublicaciones();
+  }
 
-  constructor() {
-    addIcons({
-      phonePortraitOutline,
-      createOutline,
-      documentTextOutline,
-      paperPlaneOutline,
-      closeCircleOutline
+  cargarPublicaciones(): void {
+    this.cargando = true;
+    this.errorApi = '';
+
+    this.apiService.obtenerPublicaciones().subscribe({
+      next: (datos) => {
+        this.publicaciones = datos;
+        this.cargando = false;
+      },
+      error: (error) => {
+        console.error('Error al consultar la API:', error);
+        this.errorApi = 'No se pudieron cargar las publicaciones. Revisa tu conexión.';
+        this.cargando = false;
+      }
     });
   }
 
-  setTermsModalOpen(isOpen: boolean): void {
-    this.isTermsModalOpen = isOpen;
-  }
-
-
-  async enviarSolicitud(): Promise<void> {
-    const trimmedName = this.formData.fullName ? this.formData.fullName.trim() : '';
-
-    if (!trimmedName || !this.formData.serviceType || !this.formData.acceptTerms) {
-      await this.feedbackService.showToast(
-        'Por favor complete los campos obligatorios (*)',
-        'danger',
-        3000
-      );
+  enviarPublicacion(): void {
+    if (!this.titulo.trim() || !this.contenido.trim()) {
+      this.mensaje = 'Debes completar el título y el contenido.';
       return;
     }
 
-    const selectedService = this.services.find(s => s.id === this.formData.serviceType);
-    const serviceName = selectedService ? selectedService.name : this.formData.serviceType;
-    const smsStatusText = this.formData.smsNotifications ? 'Habilitadas (Sí)' : 'Deshabilitadas (No)';
+    const nuevaPublicacion: Publicacion = {
+      userId: 1,
+      title: this.titulo.trim(),
+      body: this.contenido.trim()
+    };
 
-    const summaryMessage = `
-      <strong>Estudiante:</strong> ${trimmedName}<br>
-      <strong>Servicio:</strong> ${serviceName}<br>
-      <strong>Notificaciones SMS:</strong> ${smsStatusText}<br>
-      <strong>Términos:</strong> Aceptados correctamente.<br><br>
-      <em>¡Tu registro ha quedado almacenado en memoria con éxito!</em>
-    `;
+    this.apiService.crearPublicacion(nuevaPublicacion).subscribe({
+      next: (respuesta) => {
+        this.mensaje =
+          'Publicación enviada correctamente. ID de prueba: ' + respuesta.id;
 
-    await this.feedbackService.showAlert(
-      '¡Solicitud Registrada con Éxito!',
-      'Universidad Surcolombiana',
-      summaryMessage,
-      'Aceptar y Finalizar'
-    );
+        this.titulo = '';
+        this.contenido = '';
+      },
+      error: (error) => {
+        console.error('Error al enviar la publicación:', error);
+        this.mensaje = 'No se pudo enviar la publicación.';
+      }
+    });
   }
 }
+
